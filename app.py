@@ -19,7 +19,7 @@ from model import PointHistoryClassifier
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--device", type=int, default=0)
+    parser.add_argument("--device", type=int, default=1)
     parser.add_argument("--width", help='cap width', type=int, default=960)
     parser.add_argument("--height", help='cap height', type=int, default=540)
 
@@ -114,6 +114,13 @@ def main():
         image = cv.flip(image, 1)  # Mirror display
         debug_image = copy.deepcopy(image)
 
+        cv.line(debug_image, (100, 400), (100, 700), (50, 50, 256), 6)
+        cv.line(debug_image, (200, 400), (200, 700), (50, 50, 256), 6)
+        cv.line(debug_image, (300, 400), (300, 700), (50, 50, 256), 6)
+        cv.line(debug_image, (400, 400), (400, 700), (50, 50, 256), 6)
+
+        cv.line(debug_image, (0, 500), (900, 500), (50, 50, 256), 6)
+
         # Detection implementation #############################################################
         image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
 
@@ -167,6 +174,7 @@ def main():
                     handedness,
                     keypoint_classifier_labels[hand_sign_id],
                     point_history_classifier_labels[most_common_fg_id[0][0]],
+                    determine_chord(landmark_list)
                 )
         else:
             point_history.append([0, 0])
@@ -180,6 +188,18 @@ def main():
     cap.release()
     cv.destroyAllWindows()
 
+def determine_chord(landmark_list):
+    if len(landmark_list) == 0:
+        return "-"
+    
+    if 100 < landmark_list[8][0] < 200:
+        return "C"
+    elif 200 < landmark_list[8][0] < 300:
+        return "D"
+    elif 300 < landmark_list[8][0] < 400:
+        return "E"
+    else:
+        return "-"
 
 def select_mode(key, mode):
     number = -1
@@ -297,6 +317,7 @@ def logging_csv(number, mode, landmark_list, point_history_list):
 def draw_landmarks(image, landmark_point):
     if len(landmark_point) > 0:
         # Thumb
+        #print(landmark_point[2])
         cv.line(image, tuple(landmark_point[2]), tuple(landmark_point[3]),
                 (0, 0, 0), 6)
         cv.line(image, tuple(landmark_point[2]), tuple(landmark_point[3]),
@@ -492,7 +513,7 @@ def draw_bounding_rect(use_brect, image, brect):
 
 
 def draw_info_text(image, brect, handedness, hand_sign_text,
-                   finger_gesture_text):
+                   finger_gesture_text, chord_text=''):
     cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
                  (0, 0, 0), -1)
 
@@ -506,6 +527,13 @@ def draw_info_text(image, brect, handedness, hand_sign_text,
         cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
                    cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
         cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
+                   cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
+                   cv.LINE_AA)
+    
+    if chord_text != "":
+        cv.putText(image, "Chord:" + chord_text, (10, 90),
+                   cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
+        cv.putText(image, "Chord:" + chord_text, (10, 90),
                    cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
                    cv.LINE_AA)
 
