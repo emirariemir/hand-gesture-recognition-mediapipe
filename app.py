@@ -15,6 +15,8 @@ from utils import CvFpsCalc
 from model import KeyPointClassifier
 from model import PointHistoryClassifier
 
+from playsound import playsound
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -37,6 +39,17 @@ def get_args():
 
     return args
 
+def determine_chord(landmark_list):
+    if len(landmark_list) == 0:
+        return "-"
+    if 100 < landmark_list[8][0] < 200:
+        return "C"
+    elif 200 < landmark_list[8][0] < 300:
+        return "D"
+    elif 300 < landmark_list[8][0] < 400:
+        return "E"
+    else:
+        return "-"
 
 def main():
     # Argument parsing #################################################################
@@ -98,6 +111,8 @@ def main():
     #  ########################################################################
     mode = 0
 
+    prev_chord = "-"
+
     while True:
         fps = cvFpsCalc.get()
 
@@ -137,6 +152,9 @@ def main():
                 # Landmark calculation
                 landmark_list = calc_landmark_list(debug_image, hand_landmarks)
 
+                chord = determine_chord(landmark_list)
+                chord_changed = (prev_chord != chord) and (chord != "-")
+
                 # Conversion to relative coordinates / normalized coordinates
                 pre_processed_landmark_list = pre_process_landmark(
                     landmark_list)
@@ -174,8 +192,14 @@ def main():
                     handedness,
                     keypoint_classifier_labels[hand_sign_id],
                     point_history_classifier_labels[most_common_fg_id[0][0]],
-                    determine_chord(landmark_list)
+                    chord
                 )
+
+                if chord_changed:
+                    playsound(f'sound/{chord}.wav', False)
+                    prev_chord = chord
+                else:
+                    prev_chord = chord
         else:
             point_history.append([0, 0])
 
@@ -188,18 +212,6 @@ def main():
     cap.release()
     cv.destroyAllWindows()
 
-def determine_chord(landmark_list):
-    if len(landmark_list) == 0:
-        return "-"
-    
-    if 100 < landmark_list[8][0] < 200:
-        return "C"
-    elif 200 < landmark_list[8][0] < 300:
-        return "D"
-    elif 300 < landmark_list[8][0] < 400:
-        return "E"
-    else:
-        return "-"
 
 def select_mode(key, mode):
     number = -1
