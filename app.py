@@ -21,7 +21,7 @@ from playsound import playsound
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--device", type=int, default=1)
+    parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--width", help='cap width', type=int, default=960)
     parser.add_argument("--height", help='cap height', type=int, default=540)
 
@@ -74,7 +74,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=1,
+        max_num_hands=2,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -113,6 +113,8 @@ def main():
 
     prev_chord = "-"
 
+    prev_right = None
+
     while True:
         fps = cvFpsCalc.get()
 
@@ -133,7 +135,6 @@ def main():
         cv.line(debug_image, (200, 400), (200, 700), (50, 50, 256), 6)
         cv.line(debug_image, (300, 400), (300, 700), (50, 50, 256), 6)
         cv.line(debug_image, (400, 400), (400, 700), (50, 50, 256), 6)
-
         cv.line(debug_image, (0, 500), (900, 500), (50, 50, 256), 6)
 
         # Detection implementation #############################################################
@@ -143,6 +144,9 @@ def main():
         results = hands.process(image)
         image.flags.writeable = True
 
+        right_hand_landmarks = [None] * 21
+        left_hand_landmarks = [None] * 21
+
         #  ####################################################################
         if results.multi_hand_landmarks is not None:
             for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
@@ -151,6 +155,25 @@ def main():
                 brect = calc_bounding_rect(debug_image, hand_landmarks)
                 # Landmark calculation
                 landmark_list = calc_landmark_list(debug_image, hand_landmarks)
+
+                label = handedness.classification[0].label
+
+                pts = []
+                for i, lm in enumerate(hand_landmarks.landmark):
+                    x = min(int(lm.x * cap_width),  cap_width  - 1)
+                    y = min(int(lm.y * cap_height), cap_height - 1)
+                    pts.append([x, y])
+                if label == "Right":
+                    right_hand_landmarks = pts
+                else:
+                    left_hand_landmarks = pts
+
+                # print(landmark_list)
+
+                if right_hand_landmarks[8] is None and prev_right is not None:
+                    right_hand_landmarks = prev_right
+                
+                prev_right = right_hand_landmarks
 
                 chord = determine_chord(landmark_list)
                 chord_changed = (prev_chord != chord) and (chord != "-")
@@ -195,14 +218,16 @@ def main():
                     chord
                 )
 
-                if chord_changed:
-                    playsound(f'sound/{chord}.wav', False)
-                    prev_chord = chord
+                if chord_changed and right_hand_landmarks[8]:
+                    if right_hand_landmarks[8][1] > 270:
+                        playsound(f'sound/{chord}.wav', False)
+                        prev_chord = chord
                 else:
                     prev_chord = chord
         else:
             point_history.append([0, 0])
 
+        print(right_hand_landmarks[8])
         debug_image = draw_point_history(debug_image, point_history)
         debug_image = draw_info(debug_image, fps, mode, number)
 
@@ -258,6 +283,26 @@ def calc_landmark_list(image, landmarks):
         landmark_point.append([landmark_x, landmark_y])
 
     return landmark_point
+
+def calc_both_hand_landmark_list(image, landmarks, handedness):
+    image_width, image_height = image.shape[1], image.shape[0]
+
+    right_hand_landmark_list = [None] * 21
+    left_hand_landmark_list = [None] * 21
+
+    hand_label = handedness.classification[0].label  # "Left" or "Right"
+
+    # Loop through landmark points with index
+    for i, landmark in enumerate(landmarks.landmark):
+        landmark_x = min(int(landmark.x * image_width), image_width - 1)
+        landmark_y = min(int(landmark.y * image_height), image_height - 1)
+
+        if hand_label == "Left":
+            left_hand_landmark_list[i] = [landmark_x, landmark_y]
+        else:
+            right_hand_landmark_list[i] = [landmark_x, landmark_y]
+
+    return right_hand_landmark_list, left_hand_landmark_list
 
 
 def pre_process_landmark(landmark_list):
